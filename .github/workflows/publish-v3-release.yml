@@ -1,0 +1,158 @@
+name: Publish PCSpec v3.0 Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/publish-v3-release.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out clean public repository
+        uses: actions/checkout@v4
+
+      - name: Verify accepted executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(stat -c%s Portable/PCSpec_Portable_v3.0.exe)" = "111104"
+          echo "F3EC9AF0D76C1FF94C87B86D57E2A6ED1D8D86EB2B1B3A7DD06DC2131457C9D1  Portable/PCSpec_Portable_v3.0.exe" | sha256sum -c -
+
+      - name: Recreate exact accepted Portable ZIP
+        shell: python
+        run: |
+          import hashlib
+          import zipfile
+          from pathlib import Path
+
+          exe = Path("Portable/PCSpec_Portable_v3.0.exe")
+          out = Path("PCSpec-Portable-v3.0-Portable.zip")
+          data = exe.read_bytes()
+
+          info = zipfile.ZipInfo(
+              "PCSpec_Portable_v3.0.exe",
+              date_time=(2026, 9, 27, 10, 30, 36),
+          )
+          info.create_system = 3
+          info.external_attr = 0x81A40000
+          info.compress_type = zipfile.ZIP_DEFLATED
+
+          with zipfile.ZipFile(
+              out,
+              "w",
+              compression=zipfile.ZIP_DEFLATED,
+              compresslevel=9,
+          ) as archive:
+              archive.writestr(
+                  info,
+                  data,
+                  compress_type=zipfile.ZIP_DEFLATED,
+                  compresslevel=9,
+              )
+
+          digest = hashlib.sha256(out.read_bytes()).hexdigest().upper()
+          expected = "80F48E6F470623B4FE588ED6F60FBD7FE4C8AB13088BC569C4AE1F177421053F"
+          if digest != expected:
+              raise SystemExit(f"Portable ZIP hash mismatch: {digest}")
+
+          with zipfile.ZipFile(out, "r") as archive:
+              embedded = archive.read("PCSpec_Portable_v3.0.exe")
+          embedded_digest = hashlib.sha256(embedded).hexdigest().upper()
+          exe_expected = "F3EC9AF0D76C1FF94C87B86D57E2A6ED1D8D86EB2B1B3A7DD06DC2131457C9D1"
+          if embedded_digest != exe_expected:
+              raise SystemExit(f"Embedded EXE hash mismatch: {embedded_digest}")
+
+      - name: Prepare Release description
+        shell: bash
+        run: |
+          cat > /tmp/pcspec-release-body.md <<'EOF'
+          # PCSpec Portable v3.0
+
+          PCSpec Portable is a lightweight Windows hardware and system-information utility designed to present clear, useful system information without installation, telemetry, cloud services or internet connectivity.
+
+          ## Highlights
+
+          - Summary view for essential specifications
+          - Detailed core hardware information
+          - Additional physical hardware information
+          - Full combined system report
+          - Advanced Windows-level information
+          - Battery, LAN, Wi-Fi, USB, display and TPM reporting
+          - Professional About page
+          - Portable operation with no installation required
+          - Completely local operation
+          - No telemetry
+          - No analytics
+          - No cloud services
+          - No online update checks
+          - No nearby Wi-Fi scanning
+
+          ## Build information
+
+          Version: PCSpec Portable v3.0
+
+          Build ID:
+
+          20260927T092518Z
+
+          EXE SHA-256:
+
+          F3EC9AF0D76C1FF94C87B86D57E2A6ED1D8D86EB2B1B3A7DD06DC2131457C9D1
+
+          Designed and developed by Tajud Din.
+          EOF
+
+      - name: Create v3.0 Release with formal assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v3.0 >/dev/null 2>&1; then
+            echo "Release v3.0 already exists; refusing to create a duplicate."
+            exit 1
+          fi
+
+          gh release create v3.0 \
+            Portable/PCSpec_Portable_v3.0.exe \
+            PCSpec-Portable-v3.0-Portable.zip \
+            SHA256SUMS.txt \
+            Release-Notes-v3.0.md \
+            --title "PCSpec Portable v3.0" \
+            --notes-file /tmp/pcspec-release-body.md \
+            --latest \
+            --verify-tag
+
+      - name: Verify published Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh release view v3.0 --json assets --jq '.assets | length')" = "4"
+
+          mkdir -p /tmp/pcspec-v3-assets
+          gh release download v3.0 --dir /tmp/pcspec-v3-assets
+
+          echo "F3EC9AF0D76C1FF94C87B86D57E2A6ED1D8D86EB2B1B3A7DD06DC2131457C9D1  /tmp/pcspec-v3-assets/PCSpec_Portable_v3.0.exe" | sha256sum -c -
+          echo "80F48E6F470623B4FE588ED6F60FBD7FE4C8AB13088BC569C4AE1F177421053F  /tmp/pcspec-v3-assets/PCSpec-Portable-v3.0-Portable.zip" | sha256sum -c -
+
+          python - <<'PY'
+          import hashlib
+          import zipfile
+
+          path = "/tmp/pcspec-v3-assets/PCSpec-Portable-v3.0-Portable.zip"
+          with zipfile.ZipFile(path, "r") as archive:
+              data = archive.read("PCSpec_Portable_v3.0.exe")
+          digest = hashlib.sha256(data).hexdigest().upper()
+          expected = "F3EC9AF0D76C1FF94C87B86D57E2A6ED1D8D86EB2B1B3A7DD06DC2131457C9D1"
+          if digest != expected:
+              raise SystemExit(f"Embedded EXE hash mismatch: {digest}")
+          print("Release asset verification passed.")
+          PY
