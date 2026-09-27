@@ -1,0 +1,2 @@
+f3ec9af0d76c1ff94c87b86d57e2a6ed1d8d86eb2b1b3a7dd06dc2131457c9d1  PCSpec_Portable_v3.0.exe
+80f48e6f470623b4fe588ed6f60fbd7fe4c8ab13088bc569c4ae1f177421053f  PCSpec-Portable-v3.0-Portable.zip
