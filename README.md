@@ -19,7 +19,7 @@ Additional capabilities include battery health reporting where available, physic
 
 ## Download
 
-- [Windows EXE](https://github.com/tajuddinkh/PCSpec/raw/main/Portable/PCSpec_Portable_v3.0.exe)
+- [Windows EXE](https://github.com/tajuddinkh/PCSpec/releases/download/v3.0/PCSpec_Portable_v3.0.exe)
 - [Portable ZIP](https://github.com/tajuddinkh/PCSpec/releases/download/v3.0/PCSpec-Portable-v3.0-Portable.zip)
 
 No installation is required. Download the EXE or Portable ZIP, extract if necessary, and run `PCSpec_Portable_v3.0.exe`.
